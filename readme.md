@@ -5,14 +5,15 @@ A comprehensive guide to understanding the 3DDFA_V2 (Three-D Dense Face Alignmen
 ## Table of Contents
 
 1. [What is 3DDFA_V2?](#what-is-3ddfa_v2)
-2. [High-Level Architecture](#high-level-architecture)
-3. [Core Components Deep Dive](#core-components-deep-dive)
-4. [Mathematical Foundations](#mathematical-foundations)
-5. [Code Walkthrough](#code-walkthrough)
-6. [File Structure Guide](#file-structure-guide)
-7. [Usage Examples](#usage-examples)
-8. [Performance & Optimization](#performance--optimization)
-9. [Troubleshooting](#troubleshooting)
+2. [Demo](#demo)
+3. [High-Level Architecture](#high-level-architecture)
+4. [Core Components Deep Dive](#core-components-deep-dive)
+5. [Mathematical Foundations](#mathematical-foundations)
+6. [Code Walkthrough](#code-walkthrough)
+7. [File Structure Guide](#file-structure-guide)
+8. [Usage Examples](#usage-examples)
+9. [Performance & Optimization](#performance--optimization)
+10. [Troubleshooting](#troubleshooting)
 
 ## What is 3DDFA_V2?
 
@@ -30,6 +31,23 @@ A comprehensive guide to understanding the 3DDFA_V2 (Three-D Dense Face Alignmen
 - Movie VFX and character animation
 - Medical and forensic analysis
 - Virtual try-on for glasses, makeup, etc.
+
+## Demo
+
+🎬 **Ready-to-View Example**
+
+The repository includes a pre-processed demo video showing 2D side profile analysis:
+
+**Location**: `examples/results/videos/Video_2d_sparse.mp4`
+
+This video demonstrates:
+
+- Real-time face detection and tracking
+- 68 facial landmark points overlaid on the original video
+- Robust tracking across different head poses and expressions
+- Side profile analysis capabilities
+
+You can immediately view this file to see the system's output before running your own processing.
 
 ## High-Level Architecture
 
