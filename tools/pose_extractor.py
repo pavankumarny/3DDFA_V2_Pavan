@@ -121,7 +121,7 @@ class PoseExtractor:
         # Use the proven calc_pose function from original 3DDFA_V2
         P, pose = calc_pose(param)
         
-        # Return angles in degrees
+        # Extract angles in original order: pose[0]=yaw, pose[1]=pitch, pose[2]=roll  
         yaw = pose[0]    # Left(-)/Right(+) head turn
         pitch = pose[1]  # Down(-)/Up(+) head movement  
         roll = pose[2]   # Left(-)/Right(+) head tilt
@@ -159,9 +159,15 @@ class PoseExtractor:
                 if len(boxes) == 0:
                     return result
                 
-                # Use largest detected face
-                largest_box = max(boxes, key=lambda x: (x[2]-x[0])*(x[3]-x[1]))
-                param_lst, roi_box_lst = self.pose_estimator(frame, [largest_box])
+                # EXACT ORIGINAL ALGORITHM: Use first detected face (not largest)
+                # This matches demo_video_original.py: boxes = [boxes[0]]
+                first_box = boxes[0]
+                param_lst, roi_box_lst = self.pose_estimator(frame, [first_box])
+                
+                # CRITICAL REFINEMENT STEP (from original demo_video.py)
+                # This step is essential for achieving state-of-the-art accuracy!
+                ver = self.pose_estimator.recon_vers(param_lst, roi_box_lst, dense_flag=False)[0]
+                param_lst, roi_box_lst = self.pose_estimator(frame, [ver], crop_policy='landmark')
                 
             else:
                 # Subsequent frames: track existing face
@@ -176,8 +182,10 @@ class PoseExtractor:
                 if box_area < 2020:  # Re-detect if tracking lost
                     boxes = self.face_detector(frame)
                     if len(boxes) > 0:
-                        largest_box = max(boxes, key=lambda x: (x[2]-x[0])*(x[3]-x[1]))
-                        param_lst, roi_box_lst = self.pose_estimator(frame, [largest_box])
+                        # EXACT ORIGINAL ALGORITHM: Use first detected face (not largest)
+                        # This matches demo_video_original.py: boxes = [boxes[0]]
+                        first_box = boxes[0]
+                        param_lst, roi_box_lst = self.pose_estimator(frame, [first_box])
                     else:
                         return result
             
@@ -202,6 +210,9 @@ class PoseExtractor:
     
     def draw_visualization(self, frame, pitch, yaw, roll, landmarks=None, show_landmarks=False):
         """Draw pose information and landmarks on frame"""
+        
+        # Ensure frame is in correct format for OpenCV
+        frame = np.ascontiguousarray(frame, dtype=np.uint8)
         
         # Create semi-transparent overlay for text
         overlay = frame.copy()
@@ -248,7 +259,7 @@ class PoseExtractor:
                     landmarks_2d = landmarks
                 
                 # Draw landmarks with bigger size and more visible color
-                frame = cv_draw_landmark(frame, landmarks_2d, color=(0, 255, 0), size=3)
+                frame = cv_draw_landmark(frame, landmarks_2d, color=(0, 255, 0), size=5)
                 
                 # Show landmark count
                 cv2.putText(frame, f"Landmarks: {landmarks_2d.shape[1]}", 
@@ -393,18 +404,12 @@ Examples:
         # Video processing
         print(f"🎬 Processing video: {args.file}")
         
-        cap = cv2.VideoCapture(args.file)
-        if not cap.isOpened():
-            print(f"❌ Could not open video: {args.file}")
-            return 1
+        # Use imageio like demo_video_original.py (NOT cv2.VideoCapture)
+        import imageio
+        reader = imageio.get_reader(args.file)
+        fps = reader.get_meta_data()['fps']
         
-        # Video properties
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        
-        print(f"📹 Video: {width}x{height}, {fps:.1f} FPS, {total_frames} frames")
+        print(f"📹 Video: imageio reader, {fps:.1f} FPS")
         
         # Setup output video
         writer = None
@@ -412,7 +417,11 @@ Examples:
             output_path = resolve_output_path(args.output)
             create_output_dirs(output_path)
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            # Get frame dimensions from first frame
+            first_frame = next(iter(reader))
+            height, width = first_frame.shape[:2]
             writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+            reader = imageio.get_reader(args.file)  # Reset reader
         
         # Setup CSV export
         csv_file = None
@@ -430,20 +439,20 @@ Examples:
         successful_frames = 0
         
         try:
-            while True:
-                ret, frame = cap.read()
-                if not ret:
-                    break
+            # Use imageio iterator like demo_video_original.py
+            for frame_idx, frame in enumerate(reader):
+                # EXACT RGB->BGR conversion like demo_video_original.py
+                frame_bgr = frame[..., ::-1]  # RGB->BGR
                 
-                result = extractor.process_frame(frame, previous_landmarks)
+                result = extractor.process_frame(frame_bgr, previous_landmarks)
                 
                 if result['success']:
                     previous_landmarks = result['landmarks']
                     successful_frames += 1
                     
                     # Create visualization
-                    frame = extractor.draw_visualization(
-                        frame, result['pitch'], result['yaw'], result['roll'],
+                    frame_bgr = extractor.draw_visualization(
+                        frame_bgr, result['pitch'], result['yaw'], result['roll'],
                         result['landmarks'], args.landmarks
                     )
                     
@@ -452,22 +461,19 @@ Examples:
                         timestamp = frame_idx / fps
                         csv_writer.writerow([frame_idx, timestamp, result['pitch'], result['yaw'], result['roll']])
                     
-                    # Progress update
+                    # Progress update every 30 frames
                     if frame_idx % 30 == 0:
-                        progress = (frame_idx / total_frames) * 100
-                        print(f"Progress: {progress:5.1f}% | Frame {frame_idx:4d}/{total_frames} | "
+                        print(f"Progress: Frame {frame_idx:4d} | "
                               f"P={result['pitch']:5.1f}° Y={result['yaw']:5.1f}° R={result['roll']:5.1f}°")
                 else:
                     previous_landmarks = None
                 
-                # Write frame
+                # Write frame (convert back to RGB for imageio if needed)
                 if writer:
-                    writer.write(frame)
-                
-                frame_idx += 1
+                    writer.write(frame_bgr)
         
         finally:
-            cap.release()
+            reader.close()
             if writer:
                 writer.release()
             if csv_file:

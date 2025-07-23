@@ -39,8 +39,7 @@ def P2sRt(P):
 def matrix2angle(R):
     """ compute three Euler angles from a Rotation Matrix. Ref: http://www.gregslabaugh.net/publications/euler.pdf
     refined by: https://stackoverflow.com/questions/43364900/rotation-matrix-to-euler-angles-with-opencv
-    todo: check and debug
-     Args:
+    Args:
          R: (3,3). rotation matrix
      Returns:
          x: yaw
